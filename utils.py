@@ -45,7 +45,7 @@ class Aggregate:
                 aggregates: list) -> pyspark.sql.dataframe:
 
             dfs = []
-            df = spark.read.json(filepath)
+            df = spark.read.json(filepath_to_data)
 
             if 'fork_count' in aggregates:
                 fork_count = \
