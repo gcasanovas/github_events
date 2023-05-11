@@ -97,20 +97,14 @@ class Aggregator:
             result = reduce(lambda x, y: x.join(y, [key[0].split('.')[1], key[1].split('.')[1], key[2]]), dfs)
             return result
 
-        # get_data = GetData(start_date=self.start_date,
-        #                    end_date=self.end_date,
-        #                    input_files_dir=self.input_files_dir,
-        #                    joined_files_dir=self.joined_files_dir)
-        #
-        # filepath = get_data.import_data()
-
         # filepath = self._generate_file()
         # data = spark.read.json(filepath)
-        data = spark.read.json('joined_files/output_file.json.gz')
+
+        data = spark.read.json('../joined_files/output_file.json.gz')
         data = data.withColumn('date', to_date('created_at'))
 
         # filepath = _generateFile()
-        filepath = '../joined_files/output_file.json.gz'
+        # filepath = '../../joined_files/output_file.json.gz'
 
         # Repo aggregate data
         repo_df = _get_aggregated_df(
@@ -134,6 +128,3 @@ class Aggregator:
         # repo_df.write.json('output/repo_aggregates.json')
         # user_df.write.json('output/user_aggregates.json')
         logging.info('Final results saved inside the output directory')
-
-aggregator = Aggregator(start_date='2015-01-01 00:00:00', end_date='2015-01-03 00:00:00')
-aggregator.aggregate()
