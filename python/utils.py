@@ -43,14 +43,13 @@ class Aggregator:
         (type = WatchEvent), the number issues created (type = IssuesEvent) and the number of PRs created
         (type = PullRequestEvent).
     """
-    def __init__(self, start_date: str, end_date: str, input_files_dir: str = None, joined_files_dir: str = None,
-                 output_file_dir: str = None):
+    def __init__(self, start_date: str, end_date: str):
         self.start_date = start_date
         self.end_date = end_date
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.input_files_dir = '../input_files' if input_files_dir is None else input_files_dir
-        self.joined_files_dir = '../joined_files' if joined_files_dir is None else joined_files_dir
-        self.output_file_dir = '../output' if output_file_dir is None else output_file_dir
+        self.input_files_dir = os.path.join(script_dir, '../input_files')
+        self.joined_files_dir = os.path.join(script_dir, '../joined_files')
+        self.output_file_dir = os.path.join(script_dir, '../output')
         self.execution_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")\
             .replace(' ', '-').replace(':', '-')
 
