@@ -31,8 +31,6 @@ class Aggregator:
     Parameters:
         start_date: start date of the date range.
         end_date: end date of the date range.
-        input_files_dir: directory to store the files obtained through the http requests.
-        joined_files_dir: directory to store the files joined from the input_files_dir.
 
     Aggregations:
         repo_aggregates.json: for each repository and day, count the number of users that starred it
