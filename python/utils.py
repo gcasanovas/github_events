@@ -144,8 +144,9 @@ class Aggregator:
             user_df.write.csv(user_output_filepath, mode='overwrite')
             logging.info('Process finished with exit. Final results saved inside the output directory')
         except Exception as e:
+            logging.error(f'Error while writing csv file with PySpark: {e}')
             try:
-                logging.error('Error occurred during writing csv file with PySpark, trying with pandas')
+                logging.info('Trying to write csv with pandas')
                 # If the PySpark write.csv fails, it leaves files/directories that can make the pandas .to_csv to fail,
                 # the entire output directory is removed to prevent this to happen
                 shutil.rmtree(self.output_file_dir)
