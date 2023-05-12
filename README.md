@@ -18,7 +18,7 @@ Run main.py passing the desired parameters:
 
 # Parameters explanation
 
-The main idea is to extract data from the gharchive API between the desired dates. The first parameter consists of the start date of the range and the second parameter of the end date. For the program to work properly, both must have the following format: %Y-%m-%D.
+The main idea is to extract data from the gharchive API between the desired dates. The first parameter consists of the start date of the range and the second parameter of the end date. For the program to work properly, both must have the following format: %Y-%m-%d.
 
 # Comments
 
