@@ -1,3 +1,5 @@
+import datetime
+from datetime import datetime
 import os
 import pyspark
 from pyspark.sql import SparkSession
@@ -5,8 +7,8 @@ from pyspark.sql.functions import col, countDistinct, to_date
 import sys
 from functools import reduce
 import logging
-
-# ToDo: there must not be input_files in the final commit, everything should work without previously saved input_files
+import shutil
+from search import GetData
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,18 +43,26 @@ class Aggregator:
         (type = WatchEvent), the number issues created (type = IssuesEvent) and the number of PRs created
         (type = PullRequestEvent).
     """
-    def __init__(self, start_date: str, end_date: str, input_files_dir: str = None, joined_files_dir: str = None):
+    def __init__(self, start_date: str, end_date: str, input_files_dir: str = None, joined_files_dir: str = None,
+                 output_file_dir: str = None):
         self.start_date = start_date
         self.end_date = end_date
-        self.input_files_dir = 'input_files' if input_files_dir is None else input_files_dir
-        self.joined_files_dir = 'joined_files' if joined_files_dir is None else joined_files_dir
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.input_files_dir = '../input_files' if input_files_dir is None else input_files_dir
+        self.joined_files_dir = '../joined_files' if joined_files_dir is None else joined_files_dir
+        self.output_file_dir = '../output' if output_file_dir is None else output_file_dir
+        self.execution_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")\
+            .replace(' ', '-').replace(':', '-')
 
     def aggregate(self):
         def _get_aggregated_df(
                 df: pyspark.sql.dataframe,
                 key: list,
                 field_to_aggregate: str,
-                event_types: list) -> pyspark.sql.dataframe:
+                event_types: list,
+                filename: str,
+                output_dir: str
+        ) -> pyspark.sql.dataframe:
             """This method uses PySpark to process the data and returns a PySpark dataframe. It Aggregates each event
             filtering through the event type and saves each result to dfs list. Once all event types are processed,
             they're joined through their key.
@@ -65,7 +75,6 @@ class Aggregator:
             """
 
             logging.info('Aggregating data')
-
             dfs = []
 
             if 'fork_count' in event_types:
@@ -95,36 +104,59 @@ class Aggregator:
 
             # Join all DataFrames on key
             result = reduce(lambda x, y: x.join(y, [key[0].split('.')[1], key[1].split('.')[1], key[2]]), dfs)
-            return result
+            return result, os.path.join(output_dir, filename)
 
-        # filepath = self._generate_file()
-        # data = spark.read.json(filepath)
+        get_data = GetData(start_date=self.start_date,
+                           end_date=self.end_date,
+                           input_files_dir=self.input_files_dir,
+                           joined_files_dir=self.joined_files_dir,
+                           execution_datetime=self.execution_datetime)
 
-        data = spark.read.json('../joined_files/output_file.json.gz')
+        filepath = get_data.get()
+
+        data = spark.read.json(filepath)
         data = data.withColumn('date', to_date('created_at'))
 
-        # filepath = _generateFile()
-        # filepath = '../../joined_files/output_file.json.gz'
-
         # Repo aggregate data
-        repo_df = _get_aggregated_df(
+        repo_df, repo_output_filepath = _get_aggregated_df(
             df=data,
             key=['repo.id', 'repo.name', 'date'],
             field_to_aggregate='actor.id',
-            # For each repo aggregate WatchEvent, ForkEvent, IssuesEvent and PullRequestEvent,
-            event_types=['fork_count', 'issue_count', 'star_count', 'pull_request_count']
+            # For each repo aggregate WatchEvent, ForkEvent, IssuesEvent and PullRequestEvent
+            event_types=['fork_count', 'issue_count', 'star_count', 'pull_request_count'],
+            filename=f'repo_aggregates_{self.execution_datetime}.csv',
+            output_dir=self.output_file_dir
         )
 
         # User aggregate data
-        user_df = _get_aggregated_df(
+        user_df, user_output_filepath = _get_aggregated_df(
             df=data,
             key=['actor.id', 'actor.login', 'date'],
             field_to_aggregate='repo.id',
             # For each user aggregate WatchEvent, IssuesEvent and PullRequestEvent
-            event_types=['fork_count', 'issue_count', 'star_count']
+            event_types=['fork_count', 'issue_count', 'star_count'],
+            filename=f'user_aggregates_{self.execution_datetime}.csv',
+            output_dir=self.output_file_dir
         )
 
-        # ToDo: Save data to json file
-        # repo_df.write.json('output/repo_aggregates.json')
-        # user_df.write.json('output/user_aggregates.json')
-        logging.info('Final results saved inside the output directory')
+        try:
+            # Try to write results to a csv with PySpark
+            repo_df.write.csv(repo_output_filepath, mode='overwrite')
+            user_df.write.csv(user_output_filepath, mode='overwrite')
+            logging.info('Process finished with exit. Final results saved inside the output directory')
+        except Exception as e:
+            try:
+                logging.error('Error occurred during writing csv file with PySpark, trying with pandas')
+                # If the PySpark write.csv fails, it leaves files/directories that can make the pandas .to_csv to fail,
+                # the entire output directory is removed to prevent this to happen
+                shutil.rmtree(self.output_file_dir)
+                # Create the directory again
+                os.makedirs(self.output_file_dir)
+                repo_pd_df = repo_df.toPandas()
+                user_pd_df = user_df.toPandas()
+                # Write results to a csv with pandas
+                repo_pd_df.to_csv(repo_output_filepath, index=False)
+                user_pd_df.to_csv(user_output_filepath, index=False)
+                logging.info('Process finished with exit. Final results saved inside the output directory')
+            except Exception as e:
+                raise e

@@ -9,10 +9,6 @@ import time
 
 logging.basicConfig(level=logging.INFO)
 
-# ToDo: Use more try-except
-# ToDo: Use logging module to give info about the % of files loaded
-# ToDo: Use logging to log more info
-
 
 class GetData:
     """This class is used to make http requests to gharchive.org website using a specified daterange. For each hour
@@ -32,14 +28,16 @@ class GetData:
         join_files: joins all json.gz files inside the directory specified in the input_files_dir parameter and saves
         the result into the directory specified in the joined_files_dir parameter."""
 
-    def __init__(self, start_date: str, end_date: str, input_files_dir: str, joined_files_dir: str):
-        self.start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S')
-        self.end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d %H:%M:%S')
+    def __init__(self, start_date: str, end_date: str, input_files_dir: str, joined_files_dir: str,
+                 execution_datetime: str):
+        self.start_date = start_date
+        self.end_date = end_date
         self.input_files_dir = input_files_dir
         self.joined_files_dir = joined_files_dir
+        self.execution_datetime = execution_datetime
 
     def _generate_urls(self) -> list:
-        """This internal method is used to generate a url for each hour between the date range"""
+        """This internal method is used to generate an url for each hour between the date range"""
         logging.info('Generating urls')
         current_date = self.start_date
         result = []
@@ -59,8 +57,7 @@ class GetData:
         result.append(_parse_link(self.end_date.replace(hour=23)))
         return result
 
-    # ToDo: I think it would have been very beneficial to use threads to make the http requests, but I hadn't more time to investigate about it
-    def import_data(self):
+    def _import_data(self):
         """Makes the http request for each hour between the date range and saves the results into json.gz files.
         The files are stored into the directory specified to the input_files_dir parameter."""
         urls = self._generate_urls()
@@ -69,29 +66,34 @@ class GetData:
             try:
                 response = requests.get(url, timeout=10)
                 if response.status_code == 200:
-                    file_path = os.path.join(self.input_files_dir, os.path.basename(url))
+                    # Add execution_datetime to the filename to identify later the files for the current execution
+                    filename = os.path.basename(url).replace('.json.gz', '')
+                    output_filename = f"{filename}_{self.execution_datetime}.json.gz"
+                    file_path = os.path.join(self.input_files_dir, output_filename)
                     with open(file_path, 'wb') as f:
                         f.write(response.content)
             except requests.exceptions.Timeout:
                 logging.error(f'Request for the following url failed: {url}')
-            if i > len(urls)/2:
-                logging.info(f'Making http requests, less than 50% remaining. Time elapsed: {start_time}')
-            else:
-                logging.info(f'Making http requests, more than 50% remaining. Time elapsed: {start_time}')
-        logging.info(f'All http requests done. Total time: {time.time() - start_time}')
+            logging.info(f'Making http requests, {i}/{len(urls)} done')
+        logging.info(f'All {len(urls)}/{len(urls)} http requests done. Total time: {time.time() - start_time}')
 
-    def join_files(self) -> str:
+    def _join_files(self) -> str:
         """Joins all json.gz files inside the directory specified in the input_files_dir parameter and saves the
         result into the directory specified in the joined_files_dir parameter."""
         logging.info('Joining all files into one')
-        joined_files_filepath = f'{self.joined_files_dir}/output_file.json.gz'
+        joined_files_filepath = os.path.join(self.joined_files_dir, f'joined_file_{self.execution_datetime}.json.gz')
 
+        start_time = time.time()
         # Open the output file for writing
         with gzip.open(joined_files_filepath, 'wt', encoding='utf-8') as output_file:
 
+            listdir = [f for f in os.listdir(self.input_files_dir) if f.endswith(f'{self.execution_datetime}.json.gz')]
+
             # Iterate over the input input_files
-            for file_name in os.listdir(self.input_files_dir):
-                if file_name.endswith('.json.gz'):
+            for i, file_name in enumerate(listdir):
+                logging.info(f'Joining file {i}/{len(listdir)}')
+                # Join only the files for the current execution
+                if file_name.endswith(f'{self.execution_datetime}.json.gz'):
                     with gzip.open(os.path.join(self.input_files_dir, file_name), 'rt', encoding='utf-8') as input_file:
 
                         # Iterate over the lines in the input file and write them to the output file
@@ -99,5 +101,9 @@ class GetData:
                             data = json.loads(line)
                             json.dump(data, output_file)
                             output_file.write('\n')
-            logging.info(f'All files joined and saved into: {output_file}')
+            logging.info(f'All files joined and saved into: {output_file}. Total time: {time.time() - start_time}')
         return joined_files_filepath
+
+    def get(self):
+        self._import_data()
+        return self._join_files()

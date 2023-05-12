@@ -1,8 +1,9 @@
 import sys
 from utils import Aggregator
+from datetime import datetime
 
-start_date = sys.argv[1]
-end_date = sys.argv[2]
+start_date = datetime.strptime(f'{sys.argv[1]} 00:00:00', '%Y-%m-%d %H:%M:%S')
+end_date = datetime.strptime(f'{sys.argv[2]} 00:00:00', '%Y-%m-%d %H:%M:%S')
 
 if __name__ == '__main__':
     try:
