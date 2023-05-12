@@ -24,6 +24,6 @@ The main idea is to extract data from the gharchive API between the desired date
 
 - Most of the time is spent making the http requests and joining all files into one. Both of these problems could be improved using threads, however, I didn't have more time left to implement this. The improvement would increase significantly the performance of the program.
 - I've had a problem trying to load the final csv file with PySpark using df.write.csv method. After some investigation, seems that the problem was due to incompatibilities with the hadoop version I have installed. Again, I ran out of time :(. Despite this, I ensured to catch the exception and exported the data using pandas.
-- I ensured to include logs to the console to have an idea of the remaining time of execution.
+- I ensured to include logs to the console to have an idea of the remaining time of execution, even though I would advise to not load a wide date range. To test de program, I loaded not more than 1 day of data per execution.
 
 Enjoy!
